@@ -1,0 +1,13 @@
+{
+  "name": "mongoose-validation",
+  "version": "0.1.0",
+  "description": "A magical parameter verifier. Support koa.",
+  "main": "index.js",
+  "author": "luckcoding",
+  "homepage": "https://github.com/luckcoding/mongoose-validation",
+  "license": "ISC",
+  "dependencies": {
+    "co": "^4.6.0",
+    "lodash": "^4.17.10"
+  }
+}
