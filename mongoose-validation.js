@@ -238,16 +238,22 @@ module.exports = function (options) {
          * handle customValidators
          */
         for (var key in schema) {
-          var path = schema[key]
-          if (lodash.hasIn(path, 'validate')
-            && lodash.includes(customValidatorsKeys, path.validate)) {
-            path.validate = customValidators[path.validate]
+          /**
+           * create mongoose schema
+           */
+          (function deepLoop(path) {
+            if (lodash.hasIn(path, 'validate')
+              && lodash.includes(customValidatorsKeys, path.validate)) {
+              path.validate = customValidators[path.validate]
 
-            // new schema fix
-            if (!lodash.hasIn(path, 'type')) {
-              path.type = mongoose.Schema.Types.Mixed
+              // new schema fix
+              if (!lodash.hasIn(path, 'type')) {
+                path.type = mongoose.Schema.Types.Mixed
+              }
+            } else if (path instanceof Array) {
+              deepLoop(path[0])
             }
-          }
+          })(schema[key])
         }
 
         /**
