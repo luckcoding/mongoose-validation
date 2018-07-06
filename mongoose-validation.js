@@ -1,6 +1,5 @@
 var co = require('co')
-var cloneDeep = require('lodash/cloneDeep')
-var get = require('lodash/get')
+var lodash = require('lodash')
 
 /**
  * check value is a Object value
@@ -17,13 +16,10 @@ function isObject(input) {
  */
 function documentValidate (doc) {
   return new Promise(function (resolve) {
-    var validationErrors = []
     doc.validate(function (error) {
-      if (isObject(error) && isObject(error.errors)) {
-        for (var key in error.errors)
-          validationErrors.push(error.errors[key])
-      }
-      resolve(validationErrors)
+      lodash.hasIn(error, 'errors')
+        ? resolve(lodash.toArray(error.errors))
+        : resolve([])
     })
   })
 }
@@ -31,24 +27,42 @@ function documentValidate (doc) {
 /**
  * mongoose middleware
  * @param  {Object} options
- * options.formatError: Function
+ * options.errorFormatter: Function
  */
 module.exports = function (options) {
   options = options || {}
 
-  // mongoose
+  // inject mongoose
   mongoose = options.mongoose
-
   if (!isObject(mongoose) && (typeof mongoose.model === 'function')) {
     throw new TypeError('mongooseValidation options.mongoose must be mongoose')
   }
 
-  // error headline message
-  var formatError = options.formatError || function (errors) {
+  /**
+   * custom Validators
+   * @type {Object}
+   *
+   * {
+   *   isString: function (value) {
+   *     return typeof value === 'string'
+   *   }
+   * }
+   */
+  var customValidators = options.customValidators || {}
+  var customValidatorsKeys = lodash.keys(customValidators)
+
+  // error format
+  var errorFormatter = options.errorFormatter || function (errors) {
     return {
       errors: errors,
     }
   }
+
+  /**
+   * if has validate errors, throw it or return a value
+   * @type {Boolean} default: false
+   */
+  var throwError = options.throwError || false
 
   return co.wrap(function *(ctx, next) {
     /**
@@ -142,7 +156,7 @@ module.exports = function (options) {
         /**
          * get schema obj
          */
-        var schemaObj = cloneDeep(model.schema.obj)
+        var schemaObj = lodash.cloneDeep(model.schema.obj)
 
         /**
          * handle necessary paths
@@ -151,7 +165,7 @@ module.exports = function (options) {
           /**
            * try get necessary`s path in schema
            */
-          var pathObj = get(schemaObj, necessary[i])
+          var pathObj = lodash.get(schemaObj, necessary[i])
           if (isObject(pathObj)) {
             /**
              * remove path in necessary
@@ -202,17 +216,17 @@ module.exports = function (options) {
        *   }
        * }
        */
-      if (options.validate) {
-        var validate = options.validate
-        if (!isObject(validate)) {
-          throw new TypeError('mongooseValidate options.validate must be a mongoose schema Object value')
+      if (options.schema) {
+        var schema = options.schema
+        if (!isObject(schema)) {
+          throw new TypeError('mongooseValidate options.schema must be a mongoose schema Object value')
         }
 
         /**
          * handle necessary paths
          */
         for (var i = 0; i < necessary.length; i++) {
-          var pathObj = get(validate, necessary[i])
+          var pathObj = lodash.get(schema, necessary[i])
           if (isObject(pathObj)) {
             necessary.splice(necessary.indexOf(necessary[i]), 1)
             delete pathObj.default
@@ -221,15 +235,26 @@ module.exports = function (options) {
         }
 
         /**
+         * handle customValidators
+         */
+        for (var key in schema) {
+          var path = schema[key]
+          if (lodash.hasIn(path, 'validate')
+            && lodash.includes(customValidatorsKeys, path.validate)) {
+            path.validate = customValidators[path.validate]
+          }
+        }
+
+        /**
          * initialize custom validate value to a mongoose document
          */
-        var customSchema = new mongoose.Schema(validate)
+        var customSchema = new mongoose.Schema(schema)
         delete mongoose.models.CustomMongooseValidation
         var customModel = mongoose.model('CustomMongooseValidation', customSchema)
         var customDoc = new customModel(data)
 
         /**
-         * validate custom
+         * custom schema
          */
         customErrors = yield documentValidate(customDoc)
       }
@@ -239,7 +264,7 @@ module.exports = function (options) {
        */
       if (necessary.length) {
         for (var i = 0; i < necessary.length; i++) {
-          var pathValue = get(data, necessary[i])
+          var pathValue = lodash.get(data, necessary[i])
           if (!pathValue) {
             otherErrors.push({
               path: necessary[i],
@@ -284,9 +309,12 @@ module.exports = function (options) {
       /**
        * get an Error form and throw it
        */
-      if (errors.length) {
-        throw formatError(errors)
+      if (throwError && errors.length) {
+        throw errorFormatter(errors)
       }
+
+      // not throw, just return the solution
+      return errors.length ? errorFormatter(errors) : false
     })
 
     yield next();
