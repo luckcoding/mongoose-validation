@@ -43,12 +43,14 @@ try {
     necessary: ['name', 'email'], params can`t be an enpty
     optional: ['age'], // params can be null
     schema: { // check the params not`t in the mongoose schema paths
-      mobile: validate: function(v) {
-        return new Promise(function(resolve, reject) {
-          setTimeout(function() {
-            resolve(false)
-          }, 5)
-        })
+      mobile: {
+        validate: function(v) {
+          return new Promise(function(resolve, reject) {
+            setTimeout(function() {
+              resolve(false)
+            }, 5)
+          })
+        }
       },
       other: { type: String },
       ...

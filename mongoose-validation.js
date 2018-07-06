@@ -242,6 +242,11 @@ module.exports = function (options) {
           if (lodash.hasIn(path, 'validate')
             && lodash.includes(customValidatorsKeys, path.validate)) {
             path.validate = customValidators[path.validate]
+
+            // new schema fix
+            if (!lodash.hasIn(path, 'type')) {
+              path.type = mongoose.Schema.Types.Mixed
+            }
           }
         }
 
